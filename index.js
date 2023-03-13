@@ -78,7 +78,7 @@ app.post("/resume/create", upload.single("headshotImage"), async (req, res) => {
   const newEntry = {
     id: generateID(),
     fullName,
-    image_url: `brandonperfetti/resume-builder/uploads/${req.file.filename}`,
+    image_url: `https://resume-builder-server-chi.vercel.app/uploads/${req.file.filename}`,
     currentPosition,
     currentLength,
     currentTechnologies,
