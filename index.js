@@ -1,33 +1,42 @@
 const { Configuration, OpenAIApi } = require("openai");
 const express = require("express");
 const multer = require("multer");
-const path = require("path");
 const cors = require("cors");
-const fs = require("fs");
 const app = express();
 const port = process.env.PORT || 4000;
+const multerS3 = require("multer-s3");
+const AWS = require("aws-sdk");
 const dotenv = require("dotenv").config();
 
+const bucket = "resume-builder-uploads";
+
+const s3 = new AWS.S3({
+  endpoint: process.env.S3_BUCKET_ENDPOINT,
+  accessKeyId: process.env.S3_ACCESS_KEY_ID,
+  secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+  sslEnabled: false,
+  s3ForcePathStyle: true,
+});
+
+const storage = multerS3({
+  s3,
+  bucket,
+  contentType: multerS3.AUTO_CONTENT_TYPE,
+  metadata: (req, file, cb) => {
+    cb(null, { fieldName: file.fieldname });
+  },
+  key: (req, file, cb) => {
+    cb(null, Date.now().toString());
+  },
+});
+
+const upload = multer({ storage });
+
 app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static("uploads"));
 app.use(express.json());
 app.use(cors());
 
 const generateID = () => Math.random().toString(36).substring(2, 10);
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads");
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  },
-});
-
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 1024 * 1024 * 5 },
-});
 
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
@@ -78,7 +87,7 @@ app.post("/resume/create", upload.single("headshotImage"), async (req, res) => {
   const newEntry = {
     id: generateID(),
     fullName,
-    image_url: `https://resume-builder-server-chi.vercel.app/uploads/${req.file.filename}`,
+    image_url: `${process.env.S3_BUCKET_ENDPOINT}/resume-builder-uploads/${req.file.key}`,
     currentPosition,
     currentLength,
     currentTechnologies,
@@ -132,7 +141,7 @@ app.post("/resume/send", upload.single("resume"), async (req, res) => {
       recruiter_email: recruiterEmail,
       my_email: myEmail,
       applicant_name: applicantName,
-      resume: `https://resume-builder-server-chi.vercel.app/uploads/${req.file.filename}`,
+      resume: `${process.env.S3_BUCKET_ENDPOINT}/resume-builder-uploads/${req.file.key}`,
     },
   });
 });
@@ -143,4 +152,30 @@ app.listen(port, () => {
 
 app.get("/", (req, res) => {
   res.send("Hey this is my API running 🥳");
+});
+
+app.post("/upload", upload.single("file"), (req, res) => {
+  return res.json({ message: req.file.location });
+});
+
+app.delete("/remove/:key", async (req, res) => {
+  const params = { Bucket: bucket, Key: req.params.key };
+
+  let file;
+
+  try {
+    file = await s3.headObject(params).promise();
+  } catch (error) {
+    return res.status(404).json({ message: "File not found" });
+  }
+
+  if (file) {
+    try {
+      await s3.deleteObject(params).promise();
+    } catch (error) {
+      return res.status(500).json({ message: "Could not delete file" });
+    }
+  }
+
+  return res.json({ message: "File deleted" });
 });
