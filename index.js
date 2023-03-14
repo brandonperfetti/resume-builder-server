@@ -94,13 +94,13 @@ app.post("/resume/create", upload.single("headshotImage"), async (req, res) => {
     workHistory: workArray,
   };
 
-  const prompt1 = `I am writing a resume, my details are \n name: ${fullName} \n role: ${currentPosition} (${currentLength} years). \n I write in the technolegies: ${currentTechnologies}. Can you write a 100 words description for the top of the resume(first person writing)?`;
+  const prompt1 = `I am writing a resume, my details are \n name: ${fullName} \n role: ${currentPosition} (${currentLength} years). \n I write code with these technolegies: ${currentTechnologies}. Can you write a 100 word introduction for the top of the resume(first person writing)?`;
 
-  const prompt2 = `I am writing a resume, my details are \n name: ${fullName} \n role: ${currentPosition} (${currentLength} years). \n I write in the technolegies: ${currentTechnologies}. Can you write 10 points for a resume on what I am good at?`;
+  const prompt2 = `I am writing a resume, my details are \n name: ${fullName} \n role: ${currentPosition} (${currentLength} years). \n I  write code with these technolegies: ${currentTechnologies}. Can you write 10 points for a resume on what I am good at?`;
 
-  const prompt3 = `I am writing a resume, my details are \n name: ${fullName} \n role: ${currentPosition} (${currentLength} years). \n During my years I worked at ${
+  const prompt3 = `I am writing a resume, my details are \n name: ${fullName} \n role: ${currentPosition} (${currentLength} years). \n Over the years I've worked at ${
     workArray.length
-  } companies. ${remainderText()} \n Can you write me 50 words for each company seperated in numbers of my succession in the company (in first person)?`;
+  } companies. ${remainderText()} \n Can you write me 50 words for each company seperated in numbers of my success in the company (in first person)?`;
 
   const objective = await GPTFunction(prompt1);
   const keypoints = await GPTFunction(prompt2);
@@ -118,6 +118,7 @@ app.post("/resume/create", upload.single("headshotImage"), async (req, res) => {
 
 app.post("/resume/send", upload.single("resume"), async (req, res) => {
   const {
+    applicantName,
     recruiterName,
     jobTitle,
     myEmail,
@@ -126,10 +127,12 @@ app.post("/resume/send", upload.single("resume"), async (req, res) => {
     companyDescription,
   } = req.body;
 
+  console.log("req", req);
+
   const prompt = `My name is ${applicantName}. I want to work for ${companyName}, they are ${companyDescription}
-	I am applying for the job ${jobTitle}. I have been working before for: ${remainderText()}
-	And I have used the technologies such ass ${technologies}
-	I want to cold email ${recruiterName} my resume and write why I fit for the company.
+	I am applying for the role of ${jobTitle}. I have previously worked for: ${remainderText()}
+	And I have used technologies such as ${technologies}
+	I want to cold email ${recruiterName} my resume and write why I'm an amazing fit for the company.
 	Can you please write me the email in a friendly voice, not offical? without subject, maximum 300 words and say in the end that my CV is attached.`;
 
   const coverLetter = await GPTFunction(prompt);
@@ -141,7 +144,7 @@ app.post("/resume/send", upload.single("resume"), async (req, res) => {
       recruiter_email: recruiterEmail,
       my_email: myEmail,
       applicant_name: applicantName,
-      resume: `${process.env.S3_BUCKET_ENDPOINT}/resume-builder-uploads/${req.file.key}`,
+      resume: `${process.env.S3_BUCKET_ENDPOINT}/${req.file.key}`,
     },
   });
 });
