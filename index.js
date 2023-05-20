@@ -1,42 +1,33 @@
 const { Configuration, OpenAIApi } = require("openai");
 const express = require("express");
 const multer = require("multer");
+const path = require("path");
 const cors = require("cors");
+const fs = require("fs");
 const app = express();
 const port = process.env.PORT || 4000;
-const multerS3 = require("multer-s3");
-const AWS = require("aws-sdk");
 const dotenv = require("dotenv").config();
 
-const bucket = "resume-builder-uploads";
-
-const s3 = new AWS.S3({
-  endpoint: process.env.S3_BUCKET_ENDPOINT,
-  accessKeyId: process.env.S3_ACCESS_KEY_ID,
-  secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
-  sslEnabled: false,
-  s3ForcePathStyle: true,
-});
-
-const storage = multerS3({
-  s3,
-  bucket,
-  contentType: multerS3.AUTO_CONTENT_TYPE,
-  metadata: (req, file, cb) => {
-    cb(null, { fieldName: file.fieldname });
-  },
-  key: (req, file, cb) => {
-    cb(null, Date.now().toString());
-  },
-});
-
-const upload = multer({ storage });
-
 app.use(express.urlencoded({ extended: true }));
+app.use("/uploads", express.static("uploads"));
 app.use(express.json());
 app.use(cors());
 
 const generateID = () => Math.random().toString(36).substring(2, 10);
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads");
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 1024 * 1024 * 5 },
+});
 
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
@@ -87,20 +78,20 @@ app.post("/resume/create", upload.single("headshotImage"), async (req, res) => {
   const newEntry = {
     id: generateID(),
     fullName,
-    image_url: `${process.env.S3_BUCKET_ENDPOINT}/resume-builder-uploads/${req.file.key}`,
+    image_url: `http://localhost:4000/uploads/${req.file.filename}`,
     currentPosition,
     currentLength,
     currentTechnologies,
     workHistory: workArray,
   };
 
-  const prompt1 = `I am writing a resume, my details are \n name: ${fullName} \n role: ${currentPosition} (${currentLength} years). \n I work proficiently with these technolegies: ${currentTechnologies}. Can you write a 100 word introduction for the top of the resume(first person writing)?`;
+  const prompt1 = `I am writing a resume, my details are \n name: ${fullName} \n role: ${currentPosition} (${currentLength} years). \n I write in the technolegies: ${currentTechnologies}. Can you write a 100 words description for the top of the resume(first person writing)?`;
 
-  const prompt2 = `I am writing a resume, my details are \n name: ${fullName} \n role: ${currentPosition} (${currentLength} years). \n I  work proficiently with these technolegies: ${currentTechnologies}. Can you write 10 points for a resume on what I excel at?`;
+  const prompt2 = `I am writing a resume, my details are \n name: ${fullName} \n role: ${currentPosition} (${currentLength} years). \n I write in the technolegies: ${currentTechnologies}. Can you write 10 points for a resume on what I am good at?`;
 
-  const prompt3 = `I am writing a resume, my details are \n name: ${fullName} \n role: ${currentPosition} (${currentLength} years). \n Over the years I've worked at ${
+  const prompt3 = `I am writing a resume, my details are \n name: ${fullName} \n role: ${currentPosition} (${currentLength} years). \n During my years I worked at ${
     workArray.length
-  } companies. ${remainderText()} \n Can you write me 50 words for each company seperated in numbers pertaining to my success in the company (in first person)?`;
+  } companies. ${remainderText()} \n Can you write me 50 words for each company seperated in numbers of my succession in the company (in first person)?`;
 
   const objective = await GPTFunction(prompt1);
   const keypoints = await GPTFunction(prompt2);
@@ -118,7 +109,6 @@ app.post("/resume/create", upload.single("headshotImage"), async (req, res) => {
 
 app.post("/resume/send", upload.single("resume"), async (req, res) => {
   const {
-    applicantName,
     recruiterName,
     jobTitle,
     myEmail,
@@ -127,12 +117,10 @@ app.post("/resume/send", upload.single("resume"), async (req, res) => {
     companyDescription,
   } = req.body;
 
-  console.log("req", req);
-
   const prompt = `My name is ${applicantName}. I want to work for ${companyName}, they are ${companyDescription}
-	I am applying for the role of ${jobTitle}. I have previously worked for: ${remainderText()}
-	And I have used technologies such as ${technologies}
-	I want to cold email ${recruiterName} from ${applicantName} my resume and write why I'm a phenomenal fit for the company.
+	I am applying for the job ${jobTitle}. I have been working before for: ${remainderText()}
+	And I have used the technologies such ass ${technologies}
+	I want to cold email ${recruiterName} my resume and write why I fit for the company.
 	Can you please write me the email in a friendly voice, not offical? without subject, maximum 300 words and say in the end that my CV is attached.`;
 
   const coverLetter = await GPTFunction(prompt);
@@ -144,7 +132,7 @@ app.post("/resume/send", upload.single("resume"), async (req, res) => {
       recruiter_email: recruiterEmail,
       my_email: myEmail,
       applicant_name: applicantName,
-      resume: `${process.env.S3_BUCKET_ENDPOINT}/${req.file.key}`,
+      resume: `http://localhost:4000/uploads/${req.file.filename}`,
     },
   });
 });
@@ -155,30 +143,4 @@ app.listen(port, () => {
 
 app.get("/", (req, res) => {
   res.send("Hey this is my API running 🥳");
-});
-
-app.post("/upload", upload.single("file"), (req, res) => {
-  return res.json({ message: req.file.location });
-});
-
-app.delete("/remove/:key", async (req, res) => {
-  const params = { Bucket: bucket, Key: req.params.key };
-
-  let file;
-
-  try {
-    file = await s3.headObject(params).promise();
-  } catch (error) {
-    return res.status(404).json({ message: "File not found" });
-  }
-
-  if (file) {
-    try {
-      await s3.deleteObject(params).promise();
-    } catch (error) {
-      return res.status(500).json({ message: "Could not delete file" });
-    }
-  }
-
-  return res.json({ message: "File deleted" });
 });

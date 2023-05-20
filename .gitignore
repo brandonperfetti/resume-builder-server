@@ -13,6 +13,7 @@ npm-debug.log*
 # env files
 .env
 
-# vercel
-.vercel
+# file uploads
+/uploads
 
+/.vercel
