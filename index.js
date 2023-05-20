@@ -5,7 +5,7 @@ const path = require("path");
 const cors = require("cors");
 const fs = require("fs");
 const app = express();
-const PORT = 4000;
+const port = process.env.PORT || 4000;
 const dotenv = require("dotenv").config();
 
 app.use(express.urlencoded({ extended: true }));
@@ -137,6 +137,10 @@ app.post("/resume/send", upload.single("resume"), async (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server listening on ${PORT}`);
+app.listen(port, () => {
+  console.log(`Server listening on ${port}`);
+});
+
+app.get("/", (req, res) => {
+  res.send("Hey this is my API running 🥳");
 });
