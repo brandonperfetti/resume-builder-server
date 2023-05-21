@@ -8,7 +8,7 @@ const multerS3 = require("multer-s3");
 const AWS = require("aws-sdk");
 const dotenv = require("dotenv").config();
 
-const bucket = "resume-builder-uploads";
+const bucket = "files";
 
 const s3 = new AWS.S3({
   endpoint: process.env.S3_BUCKET_ENDPOINT,
@@ -87,7 +87,7 @@ app.post("/resume/create", upload.single("headshotImage"), async (req, res) => {
   const newEntry = {
     id: generateID(),
     fullName,
-    image_url: `${process.env.S3_BUCKET_ENDPOINT}/resume-builder-uploads/${req.file.key}`,
+    image_url: `${process.env.S3_BUCKET_ENDPOINT}/files/${req.file.key}`,
     currentPosition,
     currentLength,
     currentTechnologies,
@@ -144,7 +144,7 @@ app.post("/resume/send", upload.single("resume"), async (req, res) => {
       recruiter_email: recruiterEmail,
       my_email: myEmail,
       applicant_name: applicantName,
-      resume: `${process.env.S3_BUCKET_ENDPOINT}/${req.file.key}`,
+      resume: `${process.env.S3_BUCKET_ENDPOINT}/files/${req.file.key}`,
     },
   });
 });
